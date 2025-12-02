@@ -1,0 +1,43 @@
+import { 
+  Truck, 
+  Package, 
+  MapPin, 
+  CheckCircle, 
+  AlertCircle, 
+  Search, 
+  Plus, 
+  MoreHorizontal, 
+  ArrowRight,
+  LayoutDashboard,
+  LogOut,
+  Box,
+  Calendar,
+  Sparkles,
+  FileText,
+  X,
+  MessageCircle,
+  Send,
+  Minimize2
+} from 'lucide-react';
+
+export {
+  Truck,
+  Package,
+  MapPin,
+  CheckCircle,
+  AlertCircle,
+  Search,
+  Plus,
+  MoreHorizontal,
+  ArrowRight,
+  LayoutDashboard,
+  LogOut,
+  Box,
+  Calendar,
+  Sparkles,
+  FileText,
+  X,
+  MessageCircle,
+  Send,
+  Minimize2
+};
