@@ -9,6 +9,7 @@ import {
 import { generateStatusMessage, parseManifest, getSmartActionSuggestion } from '../services/geminiService';
 import { Shipment, ShipmentStatus, TrackingEvent } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import Timeline from '../components/Timeline';
 import { 
   Plus, 
   Search, 
@@ -21,14 +22,32 @@ import {
   FileText,
   LogOut,
   LayoutDashboard,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  Filter,
+  CalendarRange,
+  ChevronDown,
+  ChevronUp
 } from '../components/Icons';
 import { Link, useNavigate } from 'react-router-dom';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
+  
+  // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+
+  // Bulk Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Row Expansion
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isParseModalOpen, setIsParseModalOpen] = useState(false);
@@ -64,6 +83,8 @@ const AdminDashboard: React.FC = () => {
 
   const refreshData = () => {
     setShipments(getShipments());
+    setSelectedIds(new Set()); // Clear selection on refresh
+    setExpandedId(null); // Collapse all on refresh
   };
 
   const handleCreateShipment = (e: React.FormEvent) => {
@@ -190,15 +211,17 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Filter shipments
-  const filteredShipments = shipments.filter(s => 
-    s.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.recipient.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to delete this shipment?')) {
       deleteShipment(id);
+      refreshData();
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedIds.size} selected shipments?`)) {
+      selectedIds.forEach(id => deleteShipment(id));
       refreshData();
     }
   };
@@ -222,10 +245,56 @@ const AdminDashboard: React.FC = () => {
       getSmartActionSuggestion(shipment.currentStatus).then(setAiSuggestion);
   }
 
+  const toggleRow = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
+  // Filtering Logic
+  const filteredShipments = shipments.filter(s => {
+    const matchesSearch = 
+      s.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.recipient.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'ALL' || s.currentStatus === statusFilter;
+    
+    let matchesDate = true;
+    if (dateStart || dateEnd) {
+      // Filter by Estimated Delivery Date
+      const d = new Date(s.estimatedDelivery).setHours(0,0,0,0);
+      if (dateStart) {
+        if (d < new Date(dateStart).setHours(0,0,0,0)) matchesDate = false;
+      }
+      if (dateEnd) {
+        if (d > new Date(dateEnd).setHours(23,59,59,999)) matchesDate = false;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  // Selection Logic
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredShipments.length && filteredShipments.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredShipments.map(s => s.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#4D148C] text-white hidden md:flex flex-col">
+      <aside className="w-64 bg-[#4D148C] text-white hidden md:flex flex-col shrink-0">
         <div className="p-6 border-b border-[#5E1F9F]">
            <div className="flex items-center gap-2 font-bold text-xl">
              <div className="flex flex-col leading-none">
@@ -240,7 +309,6 @@ const AdminDashboard: React.FC = () => {
             <LayoutDashboard className="w-5 h-5" />
             Dashboard
           </a>
-          {/* Mock links */}
           <div className="px-4 py-3 text-slate-300 hover:text-white flex items-center gap-3 cursor-not-allowed">
             <FileText className="w-5 h-5" /> Reports
           </div>
@@ -255,9 +323,9 @@ const AdminDashboard: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
+        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-20">
           <h1 className="text-xl font-bold text-gray-800">Shipments Overview</h1>
           <div className="flex items-center gap-4">
              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm border border-purple-200">
@@ -266,20 +334,74 @@ const AdminDashboard: React.FC = () => {
           </div>
         </header>
 
-        {/* Action Bar */}
-        <div className="p-6 pb-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Search tracking # or recipient..." 
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#FF6600] focus:border-[#FF6600] outline-none"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        {/* Toolbar & Filters */}
+        <div className="p-6 pb-0 space-y-4">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search tracking # or recipient..." 
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#FF6600] focus:border-[#FF6600] outline-none"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="relative min-w-[160px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#FF6600] outline-none appearance-none bg-white cursor-pointer"
+                >
+                  <option value="ALL">All Statuses</option>
+                  {Object.values(ShipmentStatus).map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <ArrowRight className="w-3 h-3 rotate-90" />
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
+                <CalendarRange className="w-4 h-4 text-gray-400 shrink-0" />
+                <input 
+                  type="date" 
+                  className="outline-none text-sm bg-transparent w-full"
+                  value={dateStart}
+                  onChange={(e) => setDateStart(e.target.value)}
+                  placeholder="Start"
+                />
+                <span className="text-gray-400">-</span>
+                <input 
+                  type="date" 
+                  className="outline-none text-sm bg-transparent w-full"
+                  value={dateEnd}
+                  onChange={(e) => setDateEnd(e.target.value)}
+                  placeholder="End"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 shrink-0">
+               {selectedIds.size > 0 && (
+                 <button 
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-medium transition-colors border border-red-200 animate-fade-in"
+                 >
+                   <Trash2 className="w-4 h-4" />
+                   Delete ({selectedIds.size})
+                 </button>
+               )}
+
                <button 
                 onClick={() => setIsParseModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors border border-indigo-200"
@@ -287,6 +409,7 @@ const AdminDashboard: React.FC = () => {
                 <Sparkles className="w-4 h-4" />
                 Smart Import
               </button>
+              
               <button 
                 onClick={() => { setFormData({}); setIsAddModalOpen(true); }}
                 className="flex items-center gap-2 px-4 py-2 bg-[#FF6600] hover:bg-orange-600 text-white rounded-lg font-medium transition-colors shadow-sm"
@@ -304,6 +427,14 @@ const AdminDashboard: React.FC = () => {
              <table className="w-full text-left border-collapse">
                <thead className="bg-gray-50 sticky top-0 z-10">
                  <tr>
+                   <th className="px-6 py-4 border-b border-gray-200 w-10">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-[#FF6600] focus:ring-[#FF6600] w-4 h-4 cursor-pointer"
+                        checked={filteredShipments.length > 0 && selectedIds.size === filteredShipments.length}
+                        onChange={toggleSelectAll}
+                      />
+                   </th>
                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">Tracking ID</th>
                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">Recipient</th>
                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">Route</th>
@@ -313,48 +444,88 @@ const AdminDashboard: React.FC = () => {
                  </tr>
                </thead>
                <tbody className="divide-y divide-gray-100">
-                 {filteredShipments.map(shipment => (
-                   <tr key={shipment.id} className="hover:bg-slate-50 transition-colors group">
-                     <td className="px-6 py-4 whitespace-nowrap">
-                       <span className="font-medium text-[#4D148C]">{shipment.trackingNumber}</span>
-                     </td>
-                     <td className="px-6 py-4">
-                       <div className="text-sm font-medium text-gray-900">{shipment.recipient}</div>
-                       <div className="text-xs text-gray-500">{shipment.sender}</div>
-                     </td>
-                     <td className="px-6 py-4">
-                       <div className="text-sm text-gray-600 flex items-center gap-1">
-                         {shipment.origin.split(',')[0]} <span className="text-gray-400">→</span> {shipment.destination.split(',')[0]}
-                       </div>
-                     </td>
-                     <td className="px-6 py-4">
-                       <StatusBadge status={shipment.currentStatus} />
-                     </td>
-                     <td className="px-6 py-4 text-sm text-gray-500">
-                       {new Date(shipment.estimatedDelivery).toLocaleDateString()}
-                     </td>
-                     <td className="px-6 py-4 text-right">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button 
-                          onClick={() => openUpdateModal(shipment)}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
-                         >
-                           Update
-                         </button>
-                         <button 
-                          onClick={() => handleDelete(shipment.id)}
-                          className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 px-2 py-1 rounded"
-                         >
-                           Delete
-                         </button>
-                       </div>
-                     </td>
-                   </tr>
-                 ))}
+                 {filteredShipments.map(shipment => {
+                   const isSelected = selectedIds.has(shipment.id);
+                   const isExpanded = expandedId === shipment.id;
+
+                   return (
+                    <React.Fragment key={shipment.id}>
+                      <tr 
+                        onClick={() => toggleRow(shipment.id)}
+                        className={`transition-colors cursor-pointer group ${isSelected ? 'bg-orange-50' : isExpanded ? 'bg-slate-50' : 'hover:bg-slate-50'} ${isExpanded ? 'border-b-0' : ''}`}
+                      >
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-[#FF6600] focus:ring-[#FF6600] w-4 h-4 cursor-pointer"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(shipment.id)}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                            <span className="font-medium text-[#4D148C]">{shipment.trackingNumber}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">{shipment.recipient}</div>
+                          <div className="text-xs text-gray-500">{shipment.sender}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-600 flex items-center gap-1">
+                            {shipment.origin.split(',')[0]} <span className="text-gray-400">→</span> {shipment.destination.split(',')[0]}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <StatusBadge status={shipment.currentStatus} />
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {new Date(shipment.estimatedDelivery).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => openUpdateModal(shipment)}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
+                            >
+                              Update
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(shipment.id)}
+                              className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 px-2 py-1 rounded"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-slate-50">
+                          <td colSpan={7} className="px-6 py-0 pb-6 border-b border-gray-200 shadow-inner">
+                            <div className="pl-14 pt-4 animate-fade-in">
+                              <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-[#FF6600]"/> Full Tracking History
+                              </h4>
+                              <div className="bg-white rounded-lg p-6 border border-gray-200 max-w-4xl">
+                                <Timeline events={shipment.events} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                   );
+                 })}
                  {filteredShipments.length === 0 && (
                    <tr>
-                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                       No shipments found matching your criteria.
+                     <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                       <div className="flex flex-col items-center gap-2">
+                         <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                            <Search className="w-5 h-5 text-gray-400" />
+                         </div>
+                         <p>No shipments found matching your filters.</p>
+                       </div>
                      </td>
                    </tr>
                  )}

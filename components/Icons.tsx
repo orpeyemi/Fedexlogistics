@@ -17,7 +17,12 @@ import {
   X,
   MessageCircle,
   Send,
-  Minimize2
+  Minimize2,
+  Trash2,
+  Filter,
+  CalendarRange,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 export {
@@ -39,5 +44,10 @@ export {
   X,
   MessageCircle,
   Send,
-  Minimize2
+  Minimize2,
+  Trash2,
+  Filter,
+  CalendarRange,
+  ChevronDown,
+  ChevronUp
 };

@@ -4,7 +4,7 @@ import TrackingPage from './pages/TrackingPage';
 import AdminDashboard from './pages/AdminDashboard';
 
 // Mock Authentication Guard (Simplified for demo)
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+const AdminRoute = ({ children }: { children?: React.ReactNode }) => {
   // In a real app, check auth state here
   return <>{children}</>;
 };
