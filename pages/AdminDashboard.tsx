@@ -27,7 +27,9 @@ import {
   Filter,
   CalendarRange,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Pencil,
+  Save
 } from '../components/Icons';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -50,6 +52,7 @@ const AdminDashboard: React.FC = () => {
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isEditDetailsModalOpen, setIsEditDetailsModalOpen] = useState(false);
   const [isParseModalOpen, setIsParseModalOpen] = useState(false);
   
   // Selected shipment for editing/updating
@@ -62,6 +65,20 @@ const AdminDashboard: React.FC = () => {
     origin: '',
     destination: '',
     trackingNumber: '',
+    estimatedDeliveryDate: ''
+  });
+
+  const [editDetailsData, setEditDetailsData] = useState<{
+    sender: string;
+    recipient: string;
+    origin: string;
+    destination: string;
+    estimatedDeliveryDate: string;
+  }>({
+    sender: '',
+    recipient: '',
+    origin: '',
+    destination: '',
     estimatedDeliveryDate: ''
   });
 
@@ -170,6 +187,27 @@ const AdminDashboard: React.FC = () => {
     refreshData();
   };
 
+  const handleEditDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedShipment) return;
+
+    const updatedShipment: Shipment = {
+      ...selectedShipment,
+      sender: editDetailsData.sender,
+      recipient: editDetailsData.recipient,
+      origin: editDetailsData.origin,
+      destination: editDetailsData.destination,
+      estimatedDelivery: editDetailsData.estimatedDeliveryDate 
+        ? new Date(editDetailsData.estimatedDeliveryDate).toISOString() 
+        : selectedShipment.estimatedDelivery,
+      lastUpdated: new Date().toISOString()
+    };
+
+    saveShipment(updatedShipment);
+    setIsEditDetailsModalOpen(false);
+    refreshData();
+  };
+
   const handleSmartParse = async () => {
     if (!manifestText.trim()) return;
     setIsProcessingAI(true);
@@ -244,6 +282,20 @@ const AdminDashboard: React.FC = () => {
       // Fetch a quick suggestion
       getSmartActionSuggestion(shipment.currentStatus).then(setAiSuggestion);
   }
+
+  const openEditDetailsModal = (shipment: Shipment) => {
+    setSelectedShipment(shipment);
+    setEditDetailsData({
+      sender: shipment.sender,
+      recipient: shipment.recipient,
+      origin: shipment.origin,
+      destination: shipment.destination,
+      estimatedDeliveryDate: shipment.estimatedDelivery 
+        ? new Date(shipment.estimatedDelivery).toISOString().split('T')[0] 
+        : ''
+    });
+    setIsEditDetailsModalOpen(true);
+  };
 
   const toggleRow = (id: string) => {
     setExpandedId(prev => prev === id ? null : id);
@@ -488,14 +540,23 @@ const AdminDashboard: React.FC = () => {
                             <button 
                               onClick={() => openUpdateModal(shipment)}
                               className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
+                              title="Update Status"
                             >
-                              Update
+                              Status
+                            </button>
+                             <button 
+                              onClick={() => openEditDetailsModal(shipment)}
+                              className="text-xs font-medium text-orange-600 hover:text-orange-800 bg-orange-50 p-1.5 rounded"
+                              title="Edit Details"
+                            >
+                              <Pencil className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => handleDelete(shipment.id)}
-                              className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 px-2 py-1 rounded"
+                              className="text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 p-1.5 rounded"
+                              title="Delete"
                             >
-                              Delete
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -627,7 +688,7 @@ Order for Jane Smith, destination Miami, FL, sent from Warehouse A.`}
         </div>
       )}
 
-      {/* Update Shipment Modal */}
+      {/* Update Shipment Status Modal */}
       {isUpdateModalOpen && selectedShipment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
@@ -713,6 +774,66 @@ Order for Jane Smith, destination Miami, FL, sent from Warehouse A.`}
                     className="px-4 py-2 bg-[#FF6600] text-white font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50"
                 >
                     {isProcessingAI ? 'Generating...' : 'Update Status'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Details Modal */}
+      {isEditDetailsModalOpen && selectedShipment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-900">Edit Details: <span className="text-[#4D148C]">{selectedShipment.trackingNumber}</span></h2>
+              <button onClick={() => setIsEditDetailsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+            </div>
+            <form onSubmit={handleEditDetails} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Sender</label>
+                   <input required type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6600] outline-none" 
+                     value={editDetailsData.sender} 
+                     onChange={e => setEditDetailsData({...editDetailsData, sender: e.target.value})} 
+                   />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Recipient</label>
+                   <input required type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6600] outline-none" 
+                     value={editDetailsData.recipient} 
+                     onChange={e => setEditDetailsData({...editDetailsData, recipient: e.target.value})} 
+                   />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Origin</label>
+                   <input required type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6600] outline-none" 
+                     value={editDetailsData.origin} 
+                     onChange={e => setEditDetailsData({...editDetailsData, origin: e.target.value})} 
+                   />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Destination</label>
+                   <input required type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6600] outline-none" 
+                     value={editDetailsData.destination} 
+                     onChange={e => setEditDetailsData({...editDetailsData, destination: e.target.value})} 
+                   />
+                </div>
+                <div className="col-span-2">
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Delivery Date</label>
+                   <input 
+                    type="date" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6600] outline-none"
+                    value={editDetailsData.estimatedDeliveryDate}
+                    onChange={e => setEditDetailsData({...editDetailsData, estimatedDeliveryDate: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsEditDetailsModalOpen(false)} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700">
+                  <Save className="w-4 h-4" />
+                  Save Changes
                 </button>
               </div>
             </form>
